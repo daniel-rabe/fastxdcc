@@ -1,0 +1,13 @@
+# Store everything with LF endings and check it out the same way on every platform.
+# Without this, Windows checkouts rewrite every file to CRLF and contributors on other
+# systems see whole-file diffs that contain no actual change.
+* text=auto eol=lf
+
+# Binary assets, which must never be line-ending converted.
+*.png binary
+*.ico binary
+*.icns binary
+*.exe binary
+
+# Generated and not worth reviewing in a pull request.
+package-lock.json linguist-generated=true -diff

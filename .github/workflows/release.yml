@@ -1,0 +1,107 @@
+# Builds the Windows release, and has it signed if a certificate is configured.
+#
+# SignPath Foundation will only sign artifacts a public CI service built from the public
+# repository — a binary built on a developer's machine and uploaded cannot be signed, which
+# is the point of the scheme. So this workflow, not `npm run dist` on a laptop, is the
+# release path once signing is in place.
+#
+# The signing step is skipped entirely until the three SignPath secrets/variables exist, so
+# this workflow is useful on its own from the first push.
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` rather than `npm install`: it installs exactly what the lock file pins,
+      # which is what makes a build reproducible enough to be worth signing.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build the installers
+        # Nothing is signed here. SignPath does the signing, and leaving electron-builder
+        # to hunt for a local certificate only produces confusing no-op log lines.
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run dist
+
+      # electron-builder also writes its own debug/config files into `release`; only the
+      # installers are worth keeping or signing.
+      - name: Collect the artifacts
+        shell: bash
+        run: |
+          mkdir -p out
+          cp release/*.exe out/
+          ls -la out
+
+      - name: Upload the unsigned build
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: fastxdcc-unsigned
+          path: out/
+          if-no-files-found: error
+
+      # ---- signing ----------------------------------------------------------------
+      # Everything below runs only once SignPath has been set up. Until then the job
+      # finishes here with an unsigned build attached, which is still a usable release.
+
+      - name: Check whether signing is configured
+        id: signing
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.SIGNPATH_API_TOKEN }}" ] && [ -n "${{ vars.SIGNPATH_ORGANIZATION_ID }}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "SignPath is not configured yet; leaving the build unsigned." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Check the action's current inputs against SignPath's own documentation before
+      # relying on this: their action has changed shape between major versions.
+      - name: Submit to SignPath
+        if: steps.signing.outputs.ready == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: fastxdcc
+          signing-policy-slug: release-signing
+          # Signs the binaries inside the installer as well as the installer itself, then
+          # repacks it. A plain "sign this one file" configuration would leave the app
+          # executable inside the NSIS package unsigned.
+          artifact-configuration-slug: electron-installer
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed/
+
+      - name: Upload the signed build
+        if: steps.signing.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fastxdcc-signed
+          path: signed/
+          if-no-files-found: error

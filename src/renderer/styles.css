@@ -1,0 +1,810 @@
+:root {
+  --bg: #14171c;
+  --bg-raised: #1b1f26;
+  --bg-input: #11141a;
+  --border: #2a303a;
+  --border-strong: #39414e;
+  --text: #dfe4ec;
+  --text-dim: #8b95a5;
+  --text-faint: #626b7a;
+  --accent: #4f9cf9;
+  --accent-hover: #6aabfb;
+  --green: #45c27a;
+  --yellow: #e2b341;
+  --red: #e8635f;
+  --magenta: #b98ce0;
+  --cyan: #56c8d8;
+  --radius: 7px;
+  --mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, 'SF Mono', Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+  /* The whole surface is app chrome, so stray text selection just gets in the way. */
+  user-select: none;
+}
+
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 5px 12px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: #fff;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #08121f;
+  font-weight: 600;
+}
+button.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  color: #08121f;
+}
+button.danger:hover:not(:disabled) {
+  border-color: var(--red);
+  color: var(--red);
+}
+button.link {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 2px 6px;
+}
+button.link:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 5px 9px;
+  user-select: text;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-faint);
+}
+
+/* ---------- layout ---------- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--accent);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.pill .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+.pill.registered .dot {
+  background: var(--green);
+}
+.pill.connecting .dot,
+.pill.registering .dot {
+  background: var(--yellow);
+}
+.pill.disconnected .dot {
+  background: var(--red);
+}
+
+.topbar .where {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.topbar .spacer {
+  flex: 1;
+}
+
+/* ---------- tabs ---------- */
+
+.tabbar {
+  display: flex;
+  gap: 2px;
+  padding: 0 10px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.tabbar .tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 8px 14px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.tabbar .tab:hover:not(.active) {
+  color: var(--text);
+}
+.tabbar .tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.tabbar .tab .count {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+}
+
+/* Per-tab connection state, so several servers can be told apart at a glance. */
+.tabbar .tab .tabdot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex-shrink: 0;
+}
+.tabbar .tab .tabdot.registered {
+  background: var(--green);
+}
+.tabbar .tab .tabdot.connecting,
+.tabbar .tab .tabdot.registering {
+  background: var(--yellow);
+}
+.tabbar .tab .tabdot.disconnected {
+  background: var(--red);
+}
+
+.tabbar .tab .close {
+  margin-left: 2px;
+  padding: 0 3px;
+  border-radius: 3px;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1;
+}
+.tabbar .tab .close:hover {
+  background: var(--border-strong);
+  color: var(--red);
+}
+
+/* ---------- browser tab ---------- */
+
+.browser {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.browser-bar {
+  display: flex;
+  gap: 6px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  align-items: center;
+}
+.browser-bar .nav {
+  width: 30px;
+  padding: 4px 0;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1;
+}
+.browser-bar .address {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.browser-error {
+  padding: 7px 14px;
+  font-size: 12px;
+  background: rgba(232, 99, 95, 0.12);
+  color: var(--red);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/*
+ * The page is a native view floated over this element by the main process; this box only
+ * reserves and measures the space. Anything drawn inside it is visible solely while no
+ * page is loaded.
+ */
+.browser-hole {
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-input);
+  overflow: hidden;
+}
+
+.empty .faint {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+button.link.inline {
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+  vertical-align: baseline;
+}
+
+.addbar {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.addbar input.request {
+  flex: 1;
+  font-family: var(--mono);
+}
+.addbar input.bot {
+  width: 160px;
+}
+
+.notice {
+  padding: 7px 14px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.notice.error {
+  background: rgba(232, 99, 95, 0.12);
+  color: var(--red);
+}
+.notice.info {
+  background: rgba(79, 156, 249, 0.1);
+  color: var(--accent);
+}
+.notice .spacer {
+  flex: 1;
+}
+
+/* ---------- transfers ---------- */
+
+.transfers {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 120px;
+}
+
+.empty {
+  padding: 42px 16px;
+  text-align: center;
+  color: var(--text-faint);
+}
+.empty code {
+  font-family: var(--mono);
+  color: var(--text-dim);
+}
+
+table.transfers-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+table.transfers-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-faint);
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  z-index: 1;
+}
+table.transfers-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+table.transfers-table tr:hover td {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 340px;
+}
+.name .file {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: text;
+}
+.name .sub {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--mono);
+}
+
+.bar {
+  position: relative;
+  height: 7px;
+  min-width: 90px;
+  border-radius: 4px;
+  background: var(--bg-input);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 120ms linear;
+}
+.bar.done > span {
+  background: var(--green);
+}
+.pct {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  display: block;
+}
+
+td.num {
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+td.speed {
+  color: var(--green);
+}
+
+.state {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+.state.waiting,
+.state.cancelled {
+  color: var(--text-faint);
+}
+.state.requested,
+.state.botQueued {
+  color: var(--yellow);
+}
+.state.transferring {
+  color: var(--cyan);
+}
+.state.completed {
+  color: var(--green);
+}
+.state.failed {
+  color: var(--red);
+}
+.state .why {
+  display: block;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-faint);
+  font-size: 11px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+td.actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ---------- channel bar ---------- */
+
+/*
+ * Switches the chat pane between the channels open on one server. It sits directly above
+ * the log so the relationship between the two is obvious, and scrolls sideways rather than
+ * wrapping, which would push the log pane around as channels are joined.
+ */
+.chanbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-raised);
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.chanbar .spacer {
+  flex: 1;
+  min-width: 10px;
+}
+
+.chanbar .chan {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 3px 9px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chanbar .chan:hover:not(.active) {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.chanbar .chan.active {
+  color: #fff;
+  background: var(--bg-input);
+  border-color: var(--accent);
+}
+
+.chanbar .unread {
+  font-size: 10px;
+  min-width: 16px;
+  text-align: center;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #08121f;
+  font-weight: 600;
+}
+.chanbar .chan.active .unread {
+  background: var(--border-strong);
+  color: var(--text-dim);
+}
+
+/* Private messages are tinted apart from channels, which share the bar with them. */
+.chanbar .chan-wrap.pm .chan.active {
+  border-color: var(--magenta);
+}
+.chanbar .chan-wrap.pm .unread {
+  background: var(--magenta);
+}
+.chanbar .chan-wrap.pm .chan.active .unread {
+  background: var(--border-strong);
+}
+
+/* Divides the channels from the conversations without spending a whole gap on it. */
+.chanbar .sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 6px;
+  background: var(--border-strong);
+  flex-shrink: 0;
+}
+
+/* The leave button is a sibling of the tab so that clicking it cannot select the view. */
+.chanbar .chan-wrap {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius);
+}
+.chanbar .chan-wrap.active {
+  background: var(--bg-input);
+}
+.chanbar .chan-wrap .close {
+  padding: 0 5px 0 1px;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.chanbar .chan-wrap .close:hover {
+  color: var(--red);
+}
+
+.chanbar input.join {
+  width: 150px;
+  padding: 3px 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.chanbar button:not(.chan) {
+  padding: 3px 10px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* ---------- channel topic ---------- */
+
+/*
+ * Sits between the channel bar and that channel's chat. One line by default: topics on
+ * pack networks run to several hundred characters, and letting one push the chat off the
+ * screen would cost more than it gives.
+ */
+.topicbar {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-input);
+  font-size: 12px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  user-select: text;
+}
+
+.topicbar .label {
+  color: var(--text-faint);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.topicbar .text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topicbar.expanded .text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 96px;
+  overflow-y: auto;
+}
+
+.topicbar .more {
+  flex-shrink: 0;
+  align-self: flex-start;
+  user-select: none;
+}
+
+/* ---------- log ---------- */
+
+.logpane {
+  height: 210px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-input);
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 6px 0;
+  user-select: text;
+}
+.logline {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.logline .at {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+.logline .src {
+  color: var(--accent);
+  flex-shrink: 0;
+  width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.logline.error .msg {
+  color: var(--red);
+}
+.logline.info .msg {
+  color: var(--text-dim);
+}
+.logline.bot .msg {
+  color: var(--magenta);
+}
+.logline.self .msg {
+  color: var(--cyan);
+}
+.logline .msg.faint {
+  color: var(--text-faint);
+}
+
+/* The log already has the bar above it drawing a border; two would be a double line. */
+.chanbar + .logpane,
+.topicbar + .logpane {
+  border-top: none;
+}
+
+.cmdbar {
+  display: flex;
+  gap: 8px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-raised);
+  flex-shrink: 0;
+}
+.cmdbar input {
+  flex: 1;
+  font-family: var(--mono);
+}
+
+/* ---------- settings ---------- */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 10, 14, 0.66);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 10;
+}
+.dialog {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  width: 720px;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.dialog header,
+.dialog footer {
+  padding: 13px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dialog header {
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.dialog footer {
+  border-top: 1px solid var(--border);
+  justify-content: flex-end;
+}
+.dialog .body {
+  padding: 16px 18px;
+  overflow-y: auto;
+}
+.dialog .spacer {
+  flex: 1;
+}
+.dialog .where {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  user-select: text;
+}
+
+fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px 14px;
+  margin: 0 0 14px;
+}
+legend {
+  padding: 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-faint);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  gap: 9px 12px;
+  align-items: center;
+}
+.grid label {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.grid .row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.grid .row input {
+  min-width: 0;
+}
+.grid textarea {
+  min-height: 62px;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.grid .hint {
+  grid-column: 2;
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: -4px;
+}
+.checkline {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.checkline input {
+  accent-color: var(--accent);
+}
+.dialog .error {
+  color: var(--red);
+  font-size: 12px;
+  white-space: pre-wrap;
+}

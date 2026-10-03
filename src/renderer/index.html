@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      The renderer only ever loads its own bundled assets, so everything else is denied.
+      No inline scripts, no remote origins, no network access from the page.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>fastxdcc</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="./index.js"></script>
+  </body>
+</html>

@@ -1,0 +1,53 @@
+appId: com.fastxdcc.app
+productName: fastxdcc
+copyright: fastxdcc
+
+directories:
+  output: release
+  buildResources: build
+
+# esbuild already inlines every dependency except `electron` itself, so the packaged app
+# needs nothing but the bundles and the manifest that points at them. Leaving
+# node_modules out keeps the download to roughly the size of Electron alone.
+files:
+  - dist-gui/**/*
+  # Source maps are for debugging the build tree, not for shipping.
+  - '!dist-gui/**/*.map'
+  - package.json
+  # electron-builder adds production dependencies by default. Nothing here needs them at
+  # runtime, and including them would ship ~20 MB of already-bundled code twice.
+  - '!node_modules/**/*'
+
+# The terminal UI and the build scripts are not part of the desktop app.
+extraMetadata:
+  main: dist-gui/electron/main.cjs
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+
+nsis:
+  # A normal installer with a folder choice, installed for the current user so it needs
+  # no administrator rights.
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: fastxdcc
+
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
+
+linux:
+  target:
+    - AppImage
+  category: Network
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.utilities
