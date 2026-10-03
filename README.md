@@ -127,6 +127,7 @@ is sent to the channel or person whose view is open.
 
 The Windows builds are unsigned, so SmartScreen warns on first run; see
 [docs/signing.md](docs/signing.md) for what that would take.
+[CHANGELOG.md](CHANGELOG.md) records what changed between releases.
 
 Settings are stored in your user data folder (the path is shown in the settings dialog),
 not in the project.
