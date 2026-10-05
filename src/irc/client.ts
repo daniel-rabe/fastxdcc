@@ -47,6 +47,15 @@ export interface TextEvent {
   from: string;
   target: string;
   text: string;
+  /**
+   * True unless the sender is demonstrably a person.
+   *
+   * A real client's message carries a full `nick!user@host` prefix. The server's own
+   * announcements carry a bare name, and whether that name looks like a host is only a
+   * guess — so anything without a user or host part is treated as not a person, which is
+   * the safe way round for deciding whether to open a conversation for it.
+   */
+  fromServer: boolean;
 }
 
 export type ClientState = 'disconnected' | 'connecting' | 'registering' | 'registered';
@@ -387,7 +396,15 @@ export class IrcClient extends EventEmitter {
 
     const text = stripCtcp(body);
     if (text === '') return;
-    this.emit(isReply ? 'notice' : 'privmsg', { from, target, text });
+    this.emit(isReply ? 'notice' : 'privmsg', {
+      from,
+      target,
+      text,
+      fromServer:
+        !msg.prefix ||
+        msg.prefix.isServer ||
+        (msg.prefix.user === undefined && msg.prefix.host === undefined),
+    });
   }
 
   send(command: string, params: string[] = []): void {

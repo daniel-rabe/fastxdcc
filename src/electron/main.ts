@@ -554,10 +554,11 @@ async function runSmokeCheck(): Promise<void> {
   const link = await smokeCheckIrcLinks();
   const tabs = await smokeCheckTabSwitching();
   const clip = await smokeCheckClipboard();
+  const whisper = await smokeCheckWhisper();
   const popup = await smokeCheckPopup();
 
   process.stdout.write(
-    `fastxdcc smoke: ${JSON.stringify({ ...probe, popup, tabs, link, clip, consoleErrors })}\n`,
+    `fastxdcc smoke: ${JSON.stringify({ ...probe, popup, tabs, link, clip, whisper, consoleErrors })}\n`,
   );
 
   const failures: string[] = [];
@@ -572,6 +573,9 @@ async function runSmokeCheck(): Promise<void> {
     failures.push(`the two irc:// links did not open two connections (got ${link})`);
   }
   if (tabs.sessionTabs !== 2) failures.push(`expected 2 connection tabs, saw ${tabs.sessionTabs}`);
+  for (const [what, outcome] of Object.entries(whisper)) {
+    if (outcome !== 'ok') failures.push(`whisper ${what}: ${outcome}`);
+  }
   for (const [what, outcome] of Object.entries(clip)) {
     if (outcome !== 'ok') failures.push(`clipboard ${what}: ${outcome}`);
   }
@@ -584,6 +588,106 @@ async function runSmokeCheck(): Promise<void> {
     process.stdout.write('fastxdcc smoke: OK\n');
   }
   app.quit();
+}
+
+/**
+ * A private message has to open a tab the user can actually see.
+ *
+ * The session tests already prove the conversation is opened, so what is checked here is
+ * everything after that: the snapshot carrying it across the IPC boundary, the renderer
+ * receiving it, and the channel bar drawing a tab for it. A real connection to a real
+ * socket, so nothing between the wire and the DOM is stubbed.
+ */
+async function smokeCheckWhisper(): Promise<Record<string, string>> {
+  const net = await import('node:net');
+  const WHISPERER = 'whisperer';
+  const MESSAGE = 'this is a private message';
+
+  let socket: import('node:net').Socket | undefined;
+  let nick = '*';
+
+  const server = net.createServer((conn) => {
+    socket = conn;
+    let buffer = '';
+    conn.on('error', () => {});
+    conn.on('data', (chunk) => {
+      buffer += chunk.toString('utf8');
+      let index: number;
+      while ((index = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, index).replace(/\r$/, '');
+        buffer = buffer.slice(index + 1);
+        if (/^CAP LS/i.test(line)) conn.write(':fake CAP * LS :\r\n');
+        else if (/^NICK /i.test(line)) nick = line.split(' ')[1] ?? '*';
+        else if (/^CAP END/i.test(line)) {
+          conn.write(`:fake 001 ${nick} :Welcome\r\n`);
+          conn.write(`:fake 376 ${nick} :End of MOTD\r\n`);
+        }
+      }
+    });
+  });
+
+  const ask = async (code: string): Promise<string> =>
+    String(await window!.webContents.executeJavaScript(code));
+
+  try {
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    const port = typeof address === 'object' && address !== null ? address.port : 0;
+
+    const id = startSession({ host: '127.0.0.1', port, tls: false, isNick: false });
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    const out: Record<string, string> = {};
+    out.connected = sessions.get(id)?.client.connectionState === 'registered'
+      ? 'ok'
+      : `connection state was ${sessions.get(id)?.client.connectionState}`;
+    if (out.connected !== 'ok') return out;
+
+    // Bring that server's tab forward, the way the user would be looking at it.
+    await window!.webContents.executeJavaScript(
+      `[...document.querySelectorAll('.tabbar .tab')].find((t) => t.title === '127.0.0.1:${port}')?.click()`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    socket?.write(`:${WHISPERER}!u@h PRIVMSG ${nick} :${MESSAGE}\r\n`);
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    out.sessionOpenedIt = sessions.get(id)?.store.state.conversations.includes(WHISPERER)
+      ? 'ok'
+      : `session conversations were ${JSON.stringify(sessions.get(id)?.store.state.conversations)}`;
+
+    const tabs = await ask(
+      `JSON.stringify([...document.querySelectorAll('.chanbar .chan')].map((t) => t.textContent))`,
+    );
+    out.tabIsDrawn = tabs.includes(WHISPERER) ? 'ok' : `channel bar showed ${tabs}`;
+
+    // And the message has to be readable once that tab is selected.
+    await window!.webContents.executeJavaScript(
+      `[...document.querySelectorAll('.chanbar .chan')].find((t) => t.textContent.includes('${WHISPERER}'))?.click()`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const shown = await ask(`document.querySelector('.logpane')?.innerText || ''`);
+    out.messageIsReadable = shown.includes(MESSAGE) ? 'ok' : `log pane showed ${JSON.stringify(shown)}`;
+
+    // Plenty of clients send a private message as a NOTICE rather than a PRIVMSG, and
+    // those have to open a tab too — while the server's own announcements must not.
+    socket?.write(`:noticer!u@h NOTICE ${nick} :sent as a notice\r\n`);
+    socket?.write(`:fake NOTICE ${nick} :*** this is a server announcement\r\n`);
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    const after = await ask(
+      `JSON.stringify([...document.querySelectorAll('.chanbar .chan')].map((t) => t.textContent))`,
+    );
+    out.noticeOpensATab = after.includes('noticer') ? 'ok' : `channel bar showed ${after}`;
+    out.serverGetsNoTab = after.includes('fake') ? `channel bar showed ${after}` : 'ok';
+
+    return out;
+  } catch (err) {
+    return { setup: `error: ${(err as Error).message}` };
+  } finally {
+    socket?.destroy();
+    server.close();
+  }
 }
 
 /**

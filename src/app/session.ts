@@ -10,6 +10,16 @@ import { IrcClient } from '../irc/client.js';
 import { normaliseChannels, parseGetSpec, type Config } from '../config.js';
 import { Store, isChannelSource } from './store.js';
 
+/**
+ * Network services, which notice everyone on sight and are not having a conversation.
+ *
+ * Every network names them the same way — NickServ, ChanServ, MemoServ and the rest — and
+ * a tab for NickServ on every single connect would be noise, not a message.
+ */
+function isService(nick: string): boolean {
+  return /serv$/i.test(nick) || /^global$/i.test(nick);
+}
+
 /** The client's topic map as the plain object the store and the snapshot carry. */
 function topicsOf(client: IrcClient): Record<string, string> {
   return Object.fromEntries(client.topics);
@@ -120,25 +130,32 @@ export class Session {
       }
     });
 
-    client.on('privmsg', ({ from, target, text }) => {
+    client.on('privmsg', ({ from, target, text, fromServer }) => {
       if (isChannelSource(target)) {
         this.write('irc', target, `<${from}> ${text}`);
         return;
       }
       // Addressed to us personally. The view is opened before the line is written so the
       // message that started the conversation is counted inside it.
-      if (from) this.openConversation(from);
+      if (from && !fromServer) this.openConversation(from);
       this.write('irc', from || '*', `<${from}> ${text}`);
     });
 
-    client.on('notice', ({ from, target, text }) => {
-      // Notices deliberately do not open a conversation: XDCC bots announce every queue
-      // position and byte count this way, and a tab per bot would bury the real ones. They
-      // stay in the server view until the user opens that conversation themselves, at
-      // which point they join it like anything else from that nick.
+    client.on('notice', ({ from, target, text, fromServer }) => {
+      const forTransfer = from ? manager.handleNotice(from, text) : false;
+
+      if (!isChannelSource(target) && from && !fromServer && !forTransfer && !isService(from)) {
+        // Somebody is talking to us. Plenty of clients and scripts send a private message
+        // as a notice rather than a privmsg, so refusing to open a tab for one loses real
+        // conversations. What is filtered out instead is everything that is not a person:
+        // the server's own announcements, the services robots, and the queue-position
+        // chatter from a bot we have a transfer in flight with — which `handleNotice`
+        // has just told us about.
+        this.openConversation(from);
+      }
+
       const source = isChannelSource(target) ? target : from || '*';
       this.write('bot', source, `-${from}- ${text}`);
-      if (from) manager.handleNotice(from, text);
     });
 
     client.on('ctcp', ({ from, command, args, isReply }) => {

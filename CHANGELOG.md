@@ -40,10 +40,19 @@ made of.
 - **The Server view now means "everything with no view of its own."** Opening a
   conversation with an XDCC bot moves its notices out of Server and into that
   tab; closing it moves them back. Every line belongs to exactly one view.
-- Notices deliberately do not open a conversation. XDCC bots announce every
-  queue position that way, and a tab per bot would bury the real ones.
+- **A private message sent as a `NOTICE` now opens a tab too.** Plenty of
+  clients and scripts whisper that way rather than with `PRIVMSG`, and
+  refusing to open a tab for one lost real conversations. What stays in the
+  Server view instead is everything that is not a person: the server's own
+  announcements, services robots such as NickServ, and the queue-position
+  chatter from a bot you have a transfer in flight with.
 
 ### Fixed
+
+- **A message is only treated as coming from a person when it carries a full
+  `nick!user@host` prefix.** Whether a bare prefix is a server name was
+  previously a guess based on it containing a dot, so a server whose name had
+  none could have opened a conversation tab for itself.
 
 - **Copy buttons work in the Browse tab.** The tab denied every browser
   permission, including the one `navigator.clipboard.writeText()` needs, so

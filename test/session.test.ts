@@ -316,12 +316,43 @@ describe('Session private messages', () => {
     expect(session.store.state.conversations).toEqual([]);
   });
 
-  it('does not open a conversation for a bot notice', async () => {
-    session = await connected();
+  it('does not open a conversation for queue chatter from a bot we are downloading from', async () => {
+    irc = await startFakeIrc({
+      onPrivmsg: (target, text, ctx) => {
+        if (target !== 'packbot' || !text.startsWith('xdcc send')) return;
+        ctx.send(`:packbot!u@h NOTICE ${ctx.nick} :** All Slots Full, Added you to the queue in position 2 of 7`);
+      },
+    });
+    session = new Session(makeConfig(irc.port));
+    session.start();
+    await until(() => session!.store.state.channels.length > 0);
+
+    session.handleInput('/get packbot #1');
+    await until(() => session!.items[0]?.state === 'botQueued');
+
     // XDCC bots announce every queue position this way; a tab each would bury the real
-    // conversations.
-    irc!.send(':packbot!u@h NOTICE tester :** All slots full');
-    await until(() => session!.store.tail(50).some((l) => l.text.includes('All slots full')));
+    // conversations, so a notice about a transfer in flight stays in the server view.
+    expect(session.store.state.conversations).toEqual([]);
+  });
+
+  it('opens a conversation for a notice from someone we have no transfer with', async () => {
+    session = await connected();
+    // Plenty of clients and scripts send a private message as a notice. Refusing to open
+    // a tab for one loses real conversations.
+    irc!.send(':carol!u@h NOTICE tester :are you around?');
+    await until(() => session!.store.state.conversations.length > 0);
+    expect(session.store.state.conversations).toEqual(['carol']);
+  });
+
+  it('does not open a conversation for the server or for services', async () => {
+    session = await connected();
+    irc!.send(':fake.irc NOTICE tester :*** Looking up your hostname');
+    irc!.send(':NickServ!s@services NOTICE tester :This nickname is registered');
+    irc!.send(':ChanServ!s@services NOTICE tester :You are now op');
+    await until(() => session!.store.tail(50).some((l) => l.text.includes('now op')));
+
+    // A tab for the server's own announcements, or for NickServ on every connect, would
+    // be noise rather than a message.
     expect(session.store.state.conversations).toEqual([]);
   });
 
@@ -389,17 +420,19 @@ describe('Session private messages', () => {
     expect(() => session!.closeConversation('nobody')).toThrow(/No conversation open/);
   });
 
-  it('moves a nick between the server view and its own as the conversation opens', async () => {
+  it('moves a nick between the server view and its own as the conversation opens and closes', async () => {
     session = await connected();
-    irc!.send(':packbot!u@h NOTICE tester :** All slots full');
-    await until(() => session!.store.activityFor('packbot') === 1);
+    irc!.send(':carol!u@h NOTICE tester :are you around?');
+    await until(() => session!.store.state.conversations.includes('carol'));
 
-    // While no conversation is open the bot's notice belongs to the server view.
-    const before = session.store.serverActivity();
-    expect(session.store.serverActivity(['packbot'])).toBe(before - 1);
+    // Opened, so her line is hers and no longer counts towards the server view.
+    const withTab = session.store.serverActivity();
+    expect(session.store.activityFor('carol')).toBe(1);
+    expect(session.store.serverActivity(['carol'])).toBe(withTab);
 
-    session.openConversation('packbot');
-    expect(session.store.serverActivity()).toBe(before - 1);
+    // Closed, and it goes back to the server view, which is where it is shown again.
+    session.closeConversation('carol');
+    expect(session.store.serverActivity()).toBe(withTab + 1);
   });
 });
 

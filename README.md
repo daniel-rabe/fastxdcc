@@ -78,8 +78,11 @@ Browse tab exists. Topics on these networks run long, so the line is clipped to 
 default — the **▾** on the right opens the rest.
 
 A conversation also opens by itself the moment somebody messages you directly, so nothing
-private gets lost in the server log. Notices deliberately do not open one: XDCC bots
-announce every queue position that way, and a tab per bot would bury the real ones.
+private gets lost in the server log — whether they used a normal message or a notice, since
+plenty of clients whisper with one. What does not open a tab is anything that is not a
+person: the server's own announcements, services such as NickServ, and the queue-position
+chatter from a bot you have a transfer in flight with, which would otherwise bury the real
+conversations.
 
 Whatever you are looking at is where typed text goes, a bare `/part` leaves that channel,
 and a bare `/close` closes that conversation — so two channels on the same server never get

@@ -189,11 +189,17 @@ export class TransferManager extends EventEmitter {
   }
 
   /** Feed every NOTICE from a bot through here so queue positions stay current. */
-  handleNotice(from: string, text: string): void {
+  /**
+   * Apply a bot's notice to the transfer it refers to.
+   *
+   * Returns whether it belonged to one of our transfers at all, which tells the caller
+   * whether this was XDCC status chatter or just somebody sending us a notice.
+   */
+  handleNotice(from: string, text: string): boolean {
     const item = this.items.find(
       (i) => this.lc(i.bot) === this.lc(from) && IN_FLIGHT.has(i.state),
     );
-    if (!item) return;
+    if (!item) return false;
 
     const notice = parseBotNotice(text);
     switch (notice.kind) {
@@ -220,16 +226,17 @@ export class TransferManager extends EventEmitter {
         break;
       case 'removedFromQueue':
         this.fail(item, new Error(notice.text), { retry: false });
-        return;
+        return true;
       default:
         if (isTerminalFailure(notice.kind)) {
           this.fail(item, new Error(notice.reason || notice.text), { retry: false });
-          return;
+          return true;
         }
         // 'unknown' and 'completed' need no state change.
         break;
     }
     this.emit('update');
+    return true;
   }
 
   private onOffer(from: string, offer: DccSend): void {
