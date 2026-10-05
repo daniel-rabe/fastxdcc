@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import type { AppSnapshot, SessionSnapshot } from '../app/snapshot.js';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { AppSnapshot, SessionSnapshot, ViewSnapshot } from '../app/snapshot.js';
 import type { BrowserState } from '../electron/browserView.js';
 import type { TabId } from '../electron/ipc.js';
 import { BROWSE_TAB } from '../electron/ipc.js';
@@ -9,6 +9,8 @@ import { BrowserTab } from './components/BrowserTab.js';
 import { SettingsDialog } from './components/SettingsDialog.js';
 import { TransfersTab } from './components/TransfersTab.js';
 import { tabLabels } from './tabLabel.js';
+import { ALL_VIEW, type LogView } from './logView.js';
+import { syncSeen, unreadFor, unreadWhispers } from './unread.js';
 
 type Notice = { kind: 'error' | 'info'; text: string } | undefined;
 
@@ -45,10 +47,28 @@ export function App(): React.ReactElement {
   const [configPath, setConfigPath] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [notice, setNotice] = useState<Notice>();
+  /** The conversation open on each connection, kept here so a tab switch does not lose it. */
+  const [viewBySession, setViewBySession] = useState<Record<string, LogView>>({});
+  /** What each view stood at when it was last read, across every connection. */
+  const seen = useRef(new Map<string, number>());
 
   const sessions: SessionSnapshot[] = snapshot?.sessions ?? [];
   const active = sessions.find((session) => session.id === tab);
   const labels = tabLabels(sessions);
+
+  const viewOf = (sessionId: string): LogView => viewBySession[sessionId] ?? ALL_VIEW;
+
+  /*
+   * Keep the seen marks up to date for every connection, not just the one on screen.
+   *
+   * No dependency list: snapshots arrive on a timer, so this already runs at a bounded
+   * rate, and it has to see each one to notice what arrived.
+   */
+  useEffect(() => {
+    for (const session of sessions) {
+      syncSeen(seen.current, session, session.id === tab && !showSettings, viewOf(session.id));
+    }
+  });
 
   useEffect(() => api.onState(setSnapshot), []);
   useEffect(() => api.onBrowserState(setBrowserState), []);
@@ -177,17 +197,28 @@ export function App(): React.ReactElement {
       </div>
 
       <div className="tabbar">
-        {sessions.map((session) => (
+        {sessions.map((session) => {
+          const whispers = unreadWhispers(seen.current, session);
+          return (
           <button
             key={session.id}
             className={`tab ${tab === session.id ? 'active' : ''}`}
             onClick={() => setTab(session.id)}
-            title={session.network}
+            title={
+              whispers > 0
+                ? `${session.network} — ${whispers} unread private message(s)`
+                : session.network
+            }
           >
             <span className={`tabdot ${session.connection}`} />
             {labels.get(session.id) ?? session.label}
+            {/* Two different things, so two different badges: transfers in flight, and
+                people waiting for a reply. */}
             {session.activeTransfers > 0 ? (
               <span className="count">{session.activeTransfers}</span>
+            ) : null}
+            {whispers > 0 ? (
+              <span className="count whispers">{whispers > 99 ? '99+' : whispers}</span>
             ) : null}
             <span
               className="close"
@@ -202,7 +233,8 @@ export function App(): React.ReactElement {
               ×
             </span>
           </button>
-        ))}
+          );
+        })}
         <button
           className={`tab ${tab === BROWSE_TAB ? 'active' : ''}`}
           onClick={() => setTab(BROWSE_TAB)}
@@ -229,6 +261,11 @@ export function App(): React.ReactElement {
           // input over to another.
           key={active.id}
           session={active}
+          view={viewOf(active.id)}
+          onSelectView={(view) =>
+            setViewBySession((current) => ({ ...current, [active.id]: view }))
+          }
+          unreadOf={(one: ViewSnapshot) => unreadFor(seen.current, active.id, one)}
           onNotice={showNotice}
           onBrowse={() => setTab(BROWSE_TAB)}
         />

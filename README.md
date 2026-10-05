@@ -70,6 +70,11 @@ common slip and silently failing to join is the worse outcome. The **×** beside
 leaves the channel, or closes the conversation; closing one sends nothing and loses
 nothing. A number on a tab counts what has arrived there since you last looked at it.
 
+A private message arriving on a connection you are not looking at puts a count on that
+connection's tab, and raises a desktop notification if the window is not focused. Only
+conversations are counted there — channel chatter would light it permanently and tell you
+nothing.
+
 A channel's **topic** appears on its own line above the chat, with the channel tab's
 tooltip carrying it too so it can be read without switching view. Links in it are
 clickable: `http`and `https` ones open in the Browse tab, `irc://` ones connect or join.

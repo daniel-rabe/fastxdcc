@@ -25,6 +25,14 @@ function topicsOf(client: IrcClient): Record<string, string> {
   return Object.fromEntries(client.topics);
 }
 
+export interface SessionHooks {
+  /**
+   * A private message arrived from a person, with their conversation already open. Used
+   * by the desktop app to raise a notification; the terminal UI passes nothing.
+   */
+  onPrivateMessage?: (nick: string, text: string) => void;
+}
+
 export class Session {
   readonly store = new Store();
   readonly client: IrcClient;
@@ -35,7 +43,10 @@ export class Session {
   private logStream?: WriteStream;
   private autoGetDone = false;
 
-  constructor(private readonly config: Config) {
+  constructor(
+    private readonly config: Config,
+    private readonly hooks: SessionHooks = {},
+  ) {
     const channels = normaliseChannels(config);
     const downloadDir = path.resolve(config.downloadDir);
     mkdirSync(downloadDir, { recursive: true });
@@ -137,7 +148,10 @@ export class Session {
       }
       // Addressed to us personally. The view is opened before the line is written so the
       // message that started the conversation is counted inside it.
-      if (from && !fromServer) this.openConversation(from);
+      if (from && !fromServer) {
+        this.openConversation(from);
+        this.hooks.onPrivateMessage?.(from, text);
+      }
       this.write('irc', from || '*', `<${from}> ${text}`);
     });
 
@@ -152,6 +166,7 @@ export class Session {
         // chatter from a bot we have a transfer in flight with — which `handleNotice`
         // has just told us about.
         this.openConversation(from);
+        this.hooks.onPrivateMessage?.(from, text);
       }
 
       const source = isChannelSource(target) ? target : from || '*';

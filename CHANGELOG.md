@@ -32,6 +32,15 @@ made of.
   open in the Browse tab, `irc://` connects or joins. Long topics are clipped
   to one line with a control to expand them.
 
+- **An unread count on the connection tab**, so a private message arriving on a
+  server you are not looking at is visible. It counts conversations only —
+  channel traffic is ambient and would leave the badge permanently lit — and is
+  tinted like the conversation tabs to tell it apart from the transfer count
+  beside it.
+- **A desktop notification** when somebody messages you and the window is not
+  focused. Clicking it brings the window forward on that connection. One alert
+  per sender per five seconds, so a burst of lines does not stack up.
+
 ### Changed
 
 - **Typed text goes to the view you are looking at**, not to the first joined
@@ -49,6 +58,10 @@ made of.
 
 ### Fixed
 
+- **Unread counts survive switching between connections.** They were held
+  inside the transfers pane, which is unmounted whenever another connection is
+  brought forward — so the counts were lost on every switch, for exactly the
+  connections whose counts matter. They now live above it.
 - **A message is only treated as coming from a person when it carries a full
   `nick!user@host` prefix.** Whether a bare prefix is a server name was
   previously a guess based on it containing a dot, so a server whose name had

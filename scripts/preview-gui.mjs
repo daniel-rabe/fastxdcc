@@ -32,7 +32,10 @@ const firstSession = {
     },
     { name: '#movies', activity: 1 },
   ],
-  conversations: [{ name: 'packbot', activity: 2 }],
+  conversations: [
+    { name: 'packbot', activity: 2 },
+    { name: 'Carol', activity: 4 },
+  ],
   serverActivity: 7,
   activeTransfers: 2,
   items: [
@@ -133,7 +136,7 @@ const secondSession = {
   network: 'irc.abandoned-irc.net:6667',
   nick: 'yournick',
   channels: [{ name: '#zombie-warez', activity: 0, topic: 'nothing here any more' }],
-  conversations: [],
+  conversations: [{ name: 'stranger', activity: 2 }],
   serverActivity: 3,
   activeTransfers: 1,
   items: [
@@ -242,6 +245,27 @@ setInterval(() => {
   live.channels.find((c) => c.name === '#movies').activity += 1;
   listener(state);
 }, 3_000);
+
+// A whisper arriving on the connection the user is not looking at, which is the case the
+// badge on the connection tab exists for.
+let background = 0;
+setInterval(() => {
+  if (!listener) return;
+  state = structuredClone(state);
+  const other = state.sessions[1];
+  if (!other || !other.conversations[0]) return;
+  other.log = [
+    ...other.log,
+    {
+      at: Date.now(),
+      level: 'irc',
+      source: other.conversations[0].name,
+      text: '<' + other.conversations[0].name + '> are you there? (' + ++background + ')',
+    },
+  ].slice(-400);
+  other.conversations[0].activity += 1;
+  listener(state);
+}, 4_000);
 
 // And a private message, so the other kind of badge can be watched too.
 let whispers = 0;

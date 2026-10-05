@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import type { ViewSnapshot } from '../../app/snapshot.js';
-import { ALL_VIEW, SERVER_VIEW, unreadCount, type LogView } from '../logView.js';
+import { ALL_VIEW, SERVER_VIEW, type LogView } from '../logView.js';
 
 interface Props {
   channels: ViewSnapshot[];
   conversations: ViewSnapshot[];
   serverActivity: number;
   view: LogView;
-  /** Activity counts as of the last time each view was on screen, keyed by view. */
-  seen: Map<string, number>;
+  /** How much has arrived in a view since it was last read. */
+  unreadOf: (view: ViewSnapshot) => number;
   /** True once registered, which is when joining and talking become possible. */
   connected: boolean;
   onSelect: (view: LogView) => void;
@@ -31,7 +31,7 @@ export function ChannelBar({
   conversations,
   serverActivity,
   view,
-  seen,
+  unreadOf,
   connected,
   onSelect,
   onJoin,
@@ -80,7 +80,7 @@ export function ChannelBar({
       key={`${kind}:${one.name}`}
       className={`chan-wrap ${kind} ${view === one.name ? 'active' : ''}`}
     >
-      {tab(one.name, one.name, unreadCount(one.activity, seen.get(one.name)), title)}
+      {tab(one.name, one.name, unreadOf(one), title)}
       <span
         className="close"
         role="button"
@@ -103,7 +103,7 @@ export function ChannelBar({
       {tab(
         SERVER_VIEW,
         'Server',
-        unreadCount(serverActivity, seen.get(SERVER_VIEW)),
+        unreadOf({ name: SERVER_VIEW, activity: serverActivity }),
         'Status, transfers, and bot notices',
       )}
 

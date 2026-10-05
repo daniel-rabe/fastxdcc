@@ -6,7 +6,7 @@
  * through the channels in `ipc.ts` and receives state as serialisable snapshots.
  */
 
-import { BrowserWindow, app, clipboard, dialog, ipcMain, shell } from 'electron';
+import { BrowserWindow, Notification, app, clipboard, dialog, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import { networkInterfaces } from 'node:os';
 import { Session } from '../app/session.js';
@@ -67,6 +67,46 @@ let configPath = '';
 let storeDirty = false;
 let publishTimer: NodeJS.Timeout | undefined;
 let browser: EmbeddedBrowser | undefined;
+
+/**
+ * Last notification per sender, so a burst of lines from one person raises one alert
+ * rather than a stack of them.
+ */
+const lastWhisperAlert = new Map<string, number>();
+const WHISPER_ALERT_GAP_MS = 5_000;
+/** Notifications actually raised, so the smoke check can prove the path is reachable. */
+let whisperAlertsShown = 0;
+
+/**
+ * Tell the user, outside the app, that somebody messaged them.
+ *
+ * Only when the window is not focused: if they are looking at it, the tab and its unread
+ * count already say so, and a desktop notification on top of that is just noise.
+ */
+function alertPrivateMessage(sessionId: string, nick: string, text: string): void {
+  if (!window || window.isDestroyed() || window.isFocused()) return;
+  if (!Notification.isSupported()) return;
+
+  const key = `${sessionId}\u0000${nick.toLowerCase()}`;
+  const now = Date.now();
+  if (now - (lastWhisperAlert.get(key) ?? 0) < WHISPER_ALERT_GAP_MS) return;
+  lastWhisperAlert.set(key, now);
+
+  const alert = new Notification({
+    title: `${nick} messaged you`,
+    body: text.length > 160 ? `${text.slice(0, 157)}…` : text,
+  });
+  alert.on('click', () => {
+    if (!window || window.isDestroyed()) return;
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.focus();
+    // Bring that connection's tab forward, so the message is one click from being read.
+    notify('info', `Private message from ${nick}`, sessionId);
+  });
+  alert.show();
+  whisperAlertsShown++;
+}
 
 /** Raise a message in the renderer that did not come from a request it made. */
 function notify(kind: NoticeEvent['kind'], text: string, activateTab?: NoticeEvent['activateTab']): void {
@@ -177,7 +217,9 @@ function startSession(target?: IrcTarget): string {
   // because Map preserves the order a key was first inserted.
   sessions.get(id)?.shutdown();
 
-  const next = new Session(connectable);
+  const next = new Session(connectable, {
+    onPrivateMessage: (nick, text) => alertPrivateMessage(id, nick, text),
+  });
   next.store.subscribe(() => {
     storeDirty = true;
   });
@@ -651,6 +693,18 @@ async function smokeCheckWhisper(): Promise<Record<string, string>> {
 
     socket?.write(`:${WHISPERER}!u@h PRIVMSG ${nick} :${MESSAGE}\r\n`);
     await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    // Desktop notifications are raised only while the window is not focused, which is
+    // the state this reproduces; without it the check would pass for the wrong reason.
+    const alertsBefore = whisperAlertsShown;
+    window!.blur();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    socket?.write(`:offscreen!u@h PRIVMSG ${nick} :you were away\r\n`);
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    out.notifiesWhenUnfocused =
+      whisperAlertsShown > alertsBefore ? 'ok' : 'no desktop notification was raised';
+    window!.focus();
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
     out.sessionOpenedIt = sessions.get(id)?.store.state.conversations.includes(WHISPERER)
       ? 'ok'

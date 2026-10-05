@@ -198,6 +198,18 @@ textarea::placeholder {
   color: var(--text-dim);
 }
 
+/*
+ * Unread private messages, tinted like the conversation tabs they come from so the two
+ * badges on a connection tab are not mistaken for each other: the plain one counts
+ * transfers in flight, this one counts people waiting for a reply.
+ */
+.tabbar .tab .count.whispers {
+  background: var(--magenta);
+  border-color: var(--magenta);
+  color: #140d1c;
+  font-weight: 600;
+}
+
 /* Per-tab connection state, so several servers can be told apart at a glance. */
 .tabbar .tab .tabdot {
   width: 7px;

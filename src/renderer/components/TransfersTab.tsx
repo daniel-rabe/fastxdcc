@@ -1,14 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { SessionSnapshot, TransferSnapshot } from '../../app/snapshot.js';
+import React, { useMemo, useRef, useState } from 'react';
+import type { SessionSnapshot, TransferSnapshot, ViewSnapshot } from '../../app/snapshot.js';
 import { api, unwrap } from '../api.js';
-import {
-  ALL_VIEW,
-  SERVER_VIEW,
-  filterLog,
-  resolveView,
-  viewTarget,
-  type LogView,
-} from '../logView.js';
+import { ALL_VIEW, filterLog, resolveView, viewTarget, type LogView } from '../logView.js';
 import { ChannelBar } from './ChannelBar.js';
 import { LogPane } from './LogPane.js';
 import { TopicBar } from './TopicBar.js';
@@ -16,6 +9,10 @@ import { TransferTable } from './TransferTable.js';
 
 interface Props {
   session: SessionSnapshot;
+  /** The conversation on screen. Held above this component so it survives a tab switch. */
+  view: LogView;
+  onSelectView: (view: LogView) => void;
+  unreadOf: (view: ViewSnapshot) => number;
   onNotice: (kind: 'info' | 'error', text: string) => void;
   onBrowse: () => void;
 }
@@ -24,15 +21,19 @@ interface Props {
  * Everything belonging to one server: its request bar, transfer list, log and command
  * line. Each connected server gets its own instance, so nothing here is shared.
  */
-export function TransfersTab({ session, onNotice, onBrowse }: Props): React.ReactElement {
+export function TransfersTab({
+  session,
+  view: selected,
+  onSelectView: setSelected,
+  unreadOf,
+  onNotice,
+  onBrowse,
+}: Props): React.ReactElement {
   const [request, setRequest] = useState('');
   const [botName, setBotName] = useState('');
   const [command, setCommand] = useState('');
-  const [selected, setSelected] = useState<LogView>(ALL_VIEW);
   const history = useRef<string[]>([]);
   const historyIndex = useRef(-1);
-  /** Activity counts as of the last render in which each view was on screen. */
-  const seen = useRef(new Map<string, number>());
 
   const sessionId = session.id;
   const connected = session.connection === 'registered';
@@ -50,28 +51,6 @@ export function TransfersTab({ session, onNotice, onBrowse }: Props): React.Reac
     () => filterLog(session.log, view, conversations),
     [session.log, view, conversations],
   );
-
-  /*
-   * Keep the unread badges honest.
-   *
-   * A view that is on screen is by definition read, so its count is pushed forward on
-   * every render; a view seen for the first time is recorded at its current total so a
-   * channel joined mid-backlog does not open with a badge for lines it never hid. No
-   * dependency list: snapshots arrive on a timer, so this is already bounded.
-   */
-  useEffect(() => {
-    const marks = seen.current;
-    const totals = new Map<string, number>([[SERVER_VIEW, session.serverActivity]]);
-    for (const one of views) totals.set(one.name, one.activity);
-
-    for (const [name, activity] of totals) {
-      // `All` shows everything, so looking at it marks every view read.
-      if (!marks.has(name) || view === ALL_VIEW || view === name) marks.set(name, activity);
-    }
-    // Forget views that have gone, so one reopened later is not measured against a mark
-    // from the last time it existed.
-    for (const name of marks.keys()) if (!totals.has(name)) marks.delete(name);
-  });
 
   const run = async (action: () => Promise<unknown>) => {
     try {
@@ -215,7 +194,7 @@ export function TransfersTab({ session, onNotice, onBrowse }: Props): React.Reac
         conversations={conversations}
         serverActivity={session.serverActivity}
         view={view}
-        seen={seen.current}
+        unreadOf={unreadOf}
         connected={connected}
         onSelect={setSelected}
         onJoin={join}
