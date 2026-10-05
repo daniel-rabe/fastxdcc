@@ -1,6 +1,6 @@
 {
   "name": "fastxdcc",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "IRC client for XDCC downloads, with a desktop GUI and a terminal UI",
   "type": "module",
   "bin": {

@@ -4,11 +4,7 @@ Notable changes to fastxdcc. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
-
-Due to become 0.2.0. `package.json` and the locally built installers already
-carry that version; this section gets the number and a date once a `v0.2.0` tag
-is pushed and the release workflow publishes the artifacts.
+## 0.3.0 — 2026-10-05
 
 A server tab used to show one undivided log for everything that happened on
 that connection. This release splits it into the conversations it was actually
